@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+backend/.venv/
+
+# Environment / secrets
+backend/.env
+
+# Data artifacts (large files)
+backend/data/
+backend/models/
+backend/outputs/
+
+# Model caches
+*.pth
+*.onnx
+*.bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/

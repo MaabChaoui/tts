@@ -1,0 +1,42 @@
+# ============================================================
+# TTS Project — Python 3.11 + CUDA 12.8
+# Install PyTorch first with:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Then install the rest:
+#   pip install -r requirements.txt
+# ============================================================
+
+# --- Core ML / Audio ---
+# These are handled separately via index-url, but listed for completeness:
+# torch==2.11.0+cu128
+# torchaudio==2.11.0+cu128
+torchcodec              # Required for audio IO in newer coqui-tts versions
+
+# --- TTS (Coqui XTTS v2) ---
+coqui-tts==0.27.5
+transformers==4.53.0    # Required pinned version for coqui-tts 0.27.x compatibility
+
+# --- Speech-to-Text ---
+openai-whisper>=20240930
+faster-whisper>=1.1.0
+
+# --- Speaker Diarization ---
+pyannote.audio>=4.0.4
+
+# --- Audio Processing ---
+pydub>=0.25.1
+librosa>=0.11.0
+soundfile>=0.13.1
+praat-parselmouth>=0.4.7
+
+# --- ML Utilities ---
+scikit-learn>=1.8.0
+pandas>=3.0.2
+numpy>=2.4.4            # pyannote 4.x compatible
+
+# --- API ---
+fastapi>=0.135.3
+uvicorn[standard]>=0.43.0
+
+# --- Config ---
+python-dotenv>=1.2.2
