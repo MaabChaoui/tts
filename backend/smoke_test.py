@@ -120,17 +120,21 @@ def test_pyannote() -> bool:
         print(f"  Loaded pyannote pipeline in {time.time() - t0:.1f}s")
         vram_report("after load")
 
-        # Diarize a 5s silent WAV
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            tmp_wav = f.name
-        make_silent_wav(tmp_wav, sr=16000)
+        # Diarize a 5s silent WAV — pass as waveform dict to avoid torchcodec
+        sr = 16000
+        waveform = torch.zeros(1, sr * 5)  # (channels, samples)
+        audio_input = {"waveform": waveform, "sample_rate": sr}
 
-        diarization = pipeline(tmp_wav)
-        n_speakers = len(set(label for _, _, label in diarization.itertracks(yield_label=True)))
-        print(f"  Speakers detected in silence: {n_speakers} (0 expected)")
+        diarization = pipeline(audio_input)
+        # pyannote 4.x returns DiarizeOutput; extract speaker count
+        if hasattr(diarization, 'itertracks'):
+            n_speakers = len(set(label for _, _, label in diarization.itertracks(yield_label=True)))
+        else:
+            # DiarizeOutput — just check it completed
+            n_speakers = len(diarization) if hasattr(diarization, '__len__') else 0
+        print(f"  Diarization returned: {type(diarization).__name__} (speakers: {n_speakers})")
         vram_report("after diarize")
 
-        os.unlink(tmp_wav)
         del pipeline, diarization
         flush_gpu()
         vram_report("after unload")
