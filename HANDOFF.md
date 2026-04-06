@@ -1,41 +1,127 @@
-# HANDOFF — TTS Project (Phase 0.1 Complete)
+# HANDOFF.md — TTS Project Session Transfer
 
 ## Project Overview
-- **Objective**: Fine-tune XTTS v2 for high-quality Arabic narration using NatGeo Abu Dhabi documentary styles.
-- **Architecture**: Modular backend (Pipeline → Training → API) with a Phase 2 Next.js frontend.
-- **Tech Stack**: Python 3.11 (via `uv`), PyTorch 2.11+cu128, `coqui-tts` (Idiap fork), `pyannote.audio` 4.0.4, `openai-whisper`.
-- **Reference**: `PLAN.md` (Implementation steps) and `GENERAL_PLAN.md` (High-level goals).
+
+**Goal:** Multi-style Arabic documentary narration engine — fine-tune XTTS v2 on NatGeo/dahih narration audio to clone voices and styles.
+
+**Stack:** Python 3.11 · PyTorch 2.11+cu128 · coqui-tts 0.27.5 · pyannote.audio 4.0.4 · openai-whisper · faster-whisper · FastAPI · Next.js (later)
+
+**Hardware:** RTX 3050 6GB, 16GB RAM, Arch Linux, kernel 6.19.x
+
+**Key directories:**
+```
+backend/
+  pipeline/     # data processing scripts (extract.py done, rest TODO)
+  training/     # XTTS fine-tuning (TODO)
+  api/          # FastAPI server (TODO)
+  utils/        # audio_compat.py — critical torchaudio patch
+  data/
+    raw/{speaker}/*.mp3   # source files (gitignored)
+    audio/{speaker}/*.wav # extracted (gitignored)
+    transcripts/          # whisper output (TODO)
+    segments/             # speaker segments (TODO)
+    clips/                # 3-8s training clips (TODO)
+  .env          # HF_TOKEN (gitignored)
+  .venv/        # Python venv (gitignored)
+PLAN.md         # detailed phase-by-phase technical plan
+GENERAL_PLAN.md # high-level project goals
+```
+
+---
 
 ## Files Modified This Session
-- `backend/requirements.txt`: Curated dependency list with specific pins for `transformers` and `pyannote`.
-- `backend/.env`: Environment template with `HF_TOKEN` placeholder.
-- `backend/validate_gpu.py`: GPU/Torch/VRAM validation script (RTX 3050 6GB verified).
-- `backend/pipeline/`, `training/`, `api/`, `utils/`: Created directory skeletons with `__init__.py`. 
-- `backend/data/`, `models/`, `outputs/`: Data artifact directory structure (gitignored).
+
+| File | Change |
+|------|--------|
+| `backend/smoke_test.py` | Created: tests Whisper/pyannote/XTTS v2 sequentially with VRAM reporting |
+| `backend/utils/audio_compat.py` | Created: monkey-patches torchaudio.load/save to use soundfile |
+| `backend/pipeline/extract.py` | Created: MP3→WAV extraction (mono, 24kHz, 16-bit PCM) |
+| `backend/validate_gpu.py` | Verified (created by prior session) |
+| `backend/requirements.txt` | Verified (created by prior session) |
+| `.gitignore` | Created: covers .venv, .env, data/, models/, outputs/ |
+| `memory/` | Created: persistent memory files (user profile, known issues) |
+
+---
 
 ## Current Status
-- **Phase 0.1 (Setup) is 100% DONE.**
-- Environment is fully provisioned in `backend/.venv` using `uv`.
-- **RESOLVED**: Major `ImportError` on `transformers` utilities by pinning to **`4.53.0`**.
-- **RESOLVED**: `AttributeError` on `torchaudio` by upgrading to **`pyannote.audio==4.0.4`**.
-- **RESOLVED**: Missing codec error by adding **`torchcodec==0.11.0`**.
+
+**Completed:**
+- ✅ Phase 0.1 — Directory structure, venv, GPU validated (RTX 3050 6GB confirmed)
+- ✅ Phase 0.2 — HF token set, all 3 pyannote gated repos accepted
+- ✅ Phase 0.3 — Smoke tests passing: Whisper PASS, pyannote PASS, XTTS v2 PASS
+- ✅ Phase 0.4 — Git init, `.gitignore`, initial commit on `main`
+- ✅ Phase 2.1 — Audio extraction: 23 files, 15.8h total → `data/audio/` (2.6 GB)
+
+**Data collected:**
+- `NatGeoHistory`: 11 files, 10.2h (WW2 docs, crime docs, history)
+- `dahih`: 12 files, 5.6h (Egyptian educational/history YouTube channel "الدحيح")
+
+**Blockers encountered (resolved):**
+- `torchcodec 0.11` needs `libnvrtc.so.13` (system has CUDA 12.8 = `.so.12`) → patched via `utils/audio_compat.py`
+- pyannote 4.x API: use `token=` not `use_auth_token=`; pass `{"waveform": tensor, "sample_rate": int}` dict instead of file path
+- Disk full during first extraction run → user freed 17GB, re-ran successfully
+
+---
 
 ## Key Decisions
-- **Python 3.11.14**: Chosen as the "Goldilocks" version for best compatibility with legacy ML frameworks and modern PyTorch.
-- **`uv` over `venv`**: Used for faster provisioning and better handling of multiple Python side-by-side.
-- **Community Fork**: Explicitly used `coqui-tts` (Idiap fork) as the original Coqui AI repo is unmaintained.
+
+1. **24kHz not 22050Hz** — XTTS v2 outputs at 24000 Hz natively; all extraction normalized to 24kHz to avoid resampling
+2. **torchaudio patch is permanent** — `utils/audio_compat.py` must be imported before any torchaudio use in all pipeline scripts
+3. **pyannote needs waveform dict** — never pass file paths to pyannote pipeline; always preload with soundfile and pass `{"waveform": ..., "sample_rate": ...}`
+4. **Speaker subdirectory structure** — `data/raw/{speaker}/` and `data/audio/{speaker}/` preserved through pipeline for speaker identity
+5. **Sequential model loading** — GPU budget: Whisper ~300MB, pyannote ~160MB peak, XTTS ~2.1GB peak; never load two simultaneously
+
+---
 
 ## Next Steps
-- **0.2 [HUMAN]**: Obtain HuggingFace token and accept `pyannote` user agreements.
-- **0.3 [CLAUDE]**: Write the full smoke test script (Phase 0.3) to verify inference (Whisper/XTTS/Pyannote) and VRAM fit.
-- **1.1 [HUMAN]**: Populate `backend/data/raw/` with documentary samples via `yt-dlp`.
+
+**Immediate — Phase 3.1: Transcription**
+
+1. Write `backend/pipeline/transcribe.py`:
+   - Use `faster-whisper large-v3` (fits in ~1.5GB, well within budget)
+   - Input: `data/audio/{speaker}/*.wav`
+   - Language forced to `ar`
+   - Output per file: `data/transcripts/{speaker}/{name}.json` (word-level timestamps) + `.txt`
+   - Must `import utils.audio_compat` at top (torchaudio patch)
+
+2. **Phase 3.2 (HUMAN):** Spot-check transcripts for gross errors
+
+3. **Phase 4.1:** `backend/pipeline/diarize.py` — pyannote speaker diarization
+   - Pass audio as waveform dict (not file path) — see key decision #3
+   - Output: RTTM + simplified JSON
+
+4. **Phase 4.2:** `backend/pipeline/segment.py` — split by speaker, filter 2-30s
+
+5. **Phase 4.3:** Clip into 3-8s training segments
+
+**Notes for transcription script:**
+- `faster-whisper` API differs from `openai-whisper`: use `WhisperModel`, returns `(segments, info)` tuple
+- Word timestamps: `word_timestamps=True` param
+- VRAM: unload model after processing all files (don't keep loaded)
+
+---
 
 ## Start Here
-1. `cat PLAN.md` (Review execution status table).
-2. `backend/.venv/bin/python backend/validate_gpu.py` (Verify GPU/Torch state).
-3. `backend/.venv/bin/python -c "import TTS; import pyannote.audio; print('Stack OK')"` (Final import check).
+
+```bash
+# 1. Verify git state
+git log --oneline -5
+
+# 2. Check extraction is complete (should be 23 files, ~2.6GB)
+find backend/data/audio -name "*.wav" | wc -l
+du -sh backend/data/audio/
+
+# 3. Activate venv and confirm smoke test still passes
+backend/.venv/bin/python backend/smoke_test.py
+```
+
+---
 
 ## Context Notes
-- **VRAM limit**: The GPU is an RTX 3050 (6GB). We MUST run pipeline steps sequentially to avoid OOM.
-- **Semantic Note**: "coqui-tts" on PyPI is the correct package; the original "TTS" is deprecated.
-- **Pruning**: `backend/validate_gpu.py` can be deleted once 0.3 smoke tests are done.
+
+- **`dahih` style note:** الدحيح is a fast-paced, energetic Egyptian educational narrator — very different prosody from NatGeo documentary style. Good style contrast for clustering.
+- **Memory files** at `memory/` are not git-tracked; contain torchcodec issue notes and project state.
+- **PLAN.md phase numbering** is slightly inconsistent with GENERAL_PLAN.md — follow `PLAN.md` (more detailed, active plan).
+- The `لهذا السبب قتل الإعلامي السوري محمد السعيد.mp3` file is only 3:56 — borderline for training data; may want to exclude in dataset step.
+- Transcription of 15.8h with faster-whisper large-v3 will take ~30-60 min on this GPU.
+- **venv activation:** `source backend/.venv/bin/activate` or prefix commands with `backend/.venv/bin/python`
