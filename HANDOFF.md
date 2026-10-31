@@ -1,4 +1,4 @@
-# HANDOFF.md — TTS Project Session Transfer
+# /resHANDOFF.md — TTS Project Session Transfer
 
 ## Project Overview
 
@@ -9,6 +9,7 @@
 **Hardware:** RTX 3050 6GB, 16GB RAM, Arch Linux, kernel 6.19.x
 
 **Key directories:**
+
 ```
 backend/
   pipeline/     # data processing scripts (extract.py done, rest TODO)
@@ -31,21 +32,22 @@ GENERAL_PLAN.md # high-level project goals
 
 ## Files Modified This Session
 
-| File | Change |
-|------|--------|
-| `backend/smoke_test.py` | Created: tests Whisper/pyannote/XTTS v2 sequentially with VRAM reporting |
-| `backend/utils/audio_compat.py` | Created: monkey-patches torchaudio.load/save to use soundfile |
-| `backend/pipeline/extract.py` | Created: MP3→WAV extraction (mono, 24kHz, 16-bit PCM) |
-| `backend/validate_gpu.py` | Verified (created by prior session) |
-| `backend/requirements.txt` | Verified (created by prior session) |
-| `.gitignore` | Created: covers .venv, .env, data/, models/, outputs/ |
-| `memory/` | Created: persistent memory files (user profile, known issues) |
+| File                              | Change                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| `backend/smoke_test.py`         | Created: tests Whisper/pyannote/XTTS v2 sequentially with VRAM reporting |
+| `backend/utils/audio_compat.py` | Created: monkey-patches torchaudio.load/save to use soundfile            |
+| `backend/pipeline/extract.py`   | Created: MP3→WAV extraction (mono, 24kHz, 16-bit PCM)                   |
+| `backend/validate_gpu.py`       | Verified (created by prior session)                                      |
+| `backend/requirements.txt`      | Verified (created by prior session)                                      |
+| `.gitignore`                    | Created: covers .venv, .env, data/, models/, outputs/                    |
+| `memory/`                       | Created: persistent memory files (user profile, known issues)            |
 
 ---
 
 ## Current Status
 
 **Completed:**
+
 - ✅ Phase 0.1 — Directory structure, venv, GPU validated (RTX 3050 6GB confirmed)
 - ✅ Phase 0.2 — HF token set, all 3 pyannote gated repos accepted
 - ✅ Phase 0.3 — Smoke tests passing: Whisper PASS, pyannote PASS, XTTS v2 PASS
@@ -53,10 +55,12 @@ GENERAL_PLAN.md # high-level project goals
 - ✅ Phase 2.1 — Audio extraction: 23 files, 15.8h total → `data/audio/` (2.6 GB)
 
 **Data collected:**
+
 - `NatGeoHistory`: 11 files, 10.2h (WW2 docs, crime docs, history)
 - `dahih`: 12 files, 5.6h (Egyptian educational/history YouTube channel "الدحيح")
 
 **Blockers encountered (resolved):**
+
 - `torchcodec 0.11` needs `libnvrtc.so.13` (system has CUDA 12.8 = `.so.12`) → patched via `utils/audio_compat.py`
 - pyannote 4.x API: use `token=` not `use_auth_token=`; pass `{"waveform": tensor, "sample_rate": int}` dict instead of file path
 - Disk full during first extraction run → user freed 17GB, re-ran successfully
@@ -78,23 +82,22 @@ GENERAL_PLAN.md # high-level project goals
 **Immediate — Phase 3.1: Transcription**
 
 1. Write `backend/pipeline/transcribe.py`:
+
    - Use `faster-whisper large-v3` (fits in ~1.5GB, well within budget)
    - Input: `data/audio/{speaker}/*.wav`
    - Language forced to `ar`
    - Output per file: `data/transcripts/{speaker}/{name}.json` (word-level timestamps) + `.txt`
    - Must `import utils.audio_compat` at top (torchaudio patch)
-
 2. **Phase 3.2 (HUMAN):** Spot-check transcripts for gross errors
-
 3. **Phase 4.1:** `backend/pipeline/diarize.py` — pyannote speaker diarization
+
    - Pass audio as waveform dict (not file path) — see key decision #3
    - Output: RTTM + simplified JSON
-
 4. **Phase 4.2:** `backend/pipeline/segment.py` — split by speaker, filter 2-30s
-
 5. **Phase 4.3:** Clip into 3-8s training segments
 
 **Notes for transcription script:**
+
 - `faster-whisper` API differs from `openai-whisper`: use `WhisperModel`, returns `(segments, info)` tuple
 - Word timestamps: `word_timestamps=True` param
 - VRAM: unload model after processing all files (don't keep loaded)

@@ -33,3 +33,10 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Claude Code local settings / memory
+.claude/settings.local.json
+memory/

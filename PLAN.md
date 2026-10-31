@@ -207,7 +207,7 @@ Extend `segment.py` or write `backend/pipeline/clip.py`:
 - **[CLAUDE]** generates a report: for each `SPEAKER_XX` across all videos, provide:
   - Number of clips
   - Total duration
-  - 3 sample clip paths (for listening)
+  - 5 sample clip paths (for listening)
 - **[HUMAN]** listens to samples and assigns human-readable IDs:
   ```
   SPEAKER_00 from video_1 = SPEAKER_02 from video_3 = "narrator_ahmed"
