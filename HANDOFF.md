@@ -1,6 +1,25 @@
 # /resHANDOFF.md — TTS Project Session Transfer
 
-## Latest: 2026-11-08 (new machine, RTX 3060 Laptop 6 GB)
+## Latest: 2026-11-09, neural editing and the one-word tool
+
+**Done**
+- Second environment `backend/.venv-f5` (F5-TTS 1.1.7, gradio 5.35, faster-whisper; exact versions in `backend/requirements-f5.lock`). Separate from `.venv` because f5-tts pins numpy 1.26.4. Needed `pyarrow<22`. Hugging Face's Xet download stalled; `HF_HUB_DISABLE_XET=1` fixed it.
+- Weights: SILMA TTS v1 (`silma-ai/silma-tts`, Arabic/English, 163M parameters, F5-TTS architecture, Apache-2.0) and the Vocos vocoder.
+- `backend/neural_edit.py`: F5-TTS infilling. The old word's span is blanked and regenerated from the full edited sentence. Outputs `fake.wav` (only the new span pasted into the original) and `regen.wav` (whole clip through the vocoder).
+- `backend/swaplib.py`: shared helpers. `word_swap.py` now uses it; regression run 20261109-002018 matches run 20261108-232616 exactly.
+- `backend/app.py` + `run_app.sh`: local Gradio tool at http://127.0.0.1:7861. Upload or record ≤ 30 s, transcribe, click a word, type the new one, generate with neural edit or XTTS splice. About 11 s per neural edit, 40 s per splice (XTTS reloads in a helper process). Holds about 2.8 GB of GPU memory.
+
+**Editing test (Whisper and spectrograms only; nobody has listened yet)**
+- NatGeo, الحلفاء → الألمان: works with 0 or 1 context words (runs 20261109-002717-f5, -003235-f5). Spectrogram of the edit is more continuous with its neighbours than the XTTS splice.
+- الدحيح, أمريكا → فرنسا: fails with 0 context words whatever the duration ("في أن", "أنسان", "فيه"). Works once the neighbouring word on each side is regenerated too (context 1 or 2, runs 20261109-003125-f5 to -003208-f5), and the clip needs words after the edit. Cost: neighbours can drift ("وهو النظام" → "والنظام", "يواجه" → "واجه").
+- Numbers: Whisper sometimes writes digits; type them as words in the sentence box.
+
+**Not done**
+- No listening test; no measurement of the tells; no detector run on these fakes.
+
+---
+
+## 2026-11-08 (new machine, RTX 3060 Laptop 6 GB)
 
 **Done**
 - Rebuilt `backend/.venv` (Python 3.11). Exact versions in `backend/requirements.lock`. Fixes: transformers `<5` (5.x breaks coqui-tts), `six` added, torchcodec cu128 build installed only to pass coqui-tts's import check; it cannot load here (system FFmpeg 9), so `utils/audio_compat.py` still does audio IO. faster-whisper also fails on file paths for the same reason, so pass numpy arrays.
