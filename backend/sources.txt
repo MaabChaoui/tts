@@ -1,0 +1,8 @@
+# Source audio provenance. Audio files themselves stay in data/ (gitignored).
+# Downloaded audio-only with yt-dlp 2026.10.26 on 2026-11-08.
+# Format: speaker_dir | url | channel | title
+# Real people's voices from copyrighted broadcasts: research use only,
+# keep audio and any generated clips local, do not publish.
+
+NatGeoHistory | https://www.youtube.com/watch?v=lE2B6DdFZBI | Nat Geo Abu Dhabi | المعركة النهائية لهتلر: الكتيبة المفقودة
+dahih         | https://www.youtube.com/watch?v=8AS09PkAN48 | AJ+ كبريت       | الدحيح | هل تعرف الخوارزميات عنك أكثر من أهلك؟

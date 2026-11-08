@@ -4,17 +4,22 @@
 #   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
 # Then install the rest:
 #   pip install -r requirements.txt
+# Exact versions that work: requirements.lock
 # ============================================================
 
 # --- Core ML / Audio ---
 # These are handled separately via index-url, but listed for completeness:
 # torch==2.11.0+cu128
 # torchaudio==2.11.0+cu128
-torchcodec              # Required for audio IO in newer coqui-tts versions
+# torchcodec: install the cu128 build from the PyTorch index (the PyPI build targets CUDA 13):
+#   uv pip install torchcodec --index-url https://download.pytorch.org/whl/cu128
+# coqui-tts only checks that it is installed. It cannot load here (system FFmpeg 9 is
+# newer than it supports), so utils/audio_compat.py does the audio IO instead.
 
 # --- TTS (Coqui XTTS v2) ---
 coqui-tts==0.27.5
-transformers==4.53.0    # Required pinned version for coqui-tts 0.27.x compatibility
+transformers>=4.57,<5   # coqui-tts 0.27.5 needs >=4.57; 5.x removed isin_mps_friendly
+six                     # imported by coqui-tts but not declared
 
 # --- Speech-to-Text ---
 openai-whisper>=20240930
@@ -28,6 +33,7 @@ pydub>=0.25.1
 librosa>=0.11.0
 soundfile>=0.13.1
 praat-parselmouth>=0.4.7
+matplotlib              # word_swap.py spectrogram figure
 
 # --- ML Utilities ---
 scikit-learn>=1.8.0
