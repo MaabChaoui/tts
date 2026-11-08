@@ -70,7 +70,7 @@ def on_transcribe(state, lang_name):
         words = transcriber().words(state["audio"], lang)
     if not words:
         raise gr.Error("Whisper found no words in this clip.")
-    state = {**state, "words": words, "lang": lang}
+    state = {**state, "words": words, "lang": lang, "transcript": " ".join(w["word"] for w in words), "auto_text": None}
     choices = [(f"{w['word']}  ·  {w['start']:.1f}s", i) for i, w in enumerate(words)]
     rtl = ["rtl"] if lang == "ar" else []
     return (state, gr.update(choices=choices, value=None, elem_classes=rtl),
@@ -78,13 +78,17 @@ def on_transcribe(state, lang_name):
             f"{len(words)} words. Click the word to replace.")
 
 
-def on_edit_inputs(state, k, new_word):
+def on_edit_inputs(state, k, new_word, current):
+    """Fill the sentence box with the transcript and the new word, unless the user has edited it."""
     if not state or not state.get("words") or k is None:
-        return gr.update()
+        return state, gr.update()
+    if current and current != state.get("auto_text") and current != state.get("transcript"):
+        return state, gr.update()
     words = [w["word"] for w in state["words"]]
     if new_word and new_word.strip():
         words[k] = new_word.strip()
-    return gr.update(value=" ".join(words))
+    auto = " ".join(words)
+    return {**state, "auto_text": auto}, gr.update(value=auto)
 
 
 def run_generate(state, k, new_word, text, method, seed, context=1, new_dur=0):
@@ -182,8 +186,8 @@ with gr.Blocks(title="Word Swap", css=CSS, theme=gr.themes.Base(primary_hue="ora
 
     clip.change(on_upload, [clip], [state, status, word, text])
     transcribe_btn.click(on_transcribe, [state, lang], [state, word, text, status])
-    word.change(on_edit_inputs, [state, word, new_word], [text])
-    new_word.change(on_edit_inputs, [state, word, new_word], [text])
+    word.change(on_edit_inputs, [state, word, new_word, text], [state, text])
+    new_word.change(on_edit_inputs, [state, word, new_word, text], [state, text])
     outputs = [fake, third, spec, summary, record]
     inputs = [state, word, new_word, text, method, seed, context, new_dur]
     generate_btn.click(run_generate, inputs, outputs)

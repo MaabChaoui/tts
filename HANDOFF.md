@@ -7,11 +7,11 @@
 - Weights: SILMA TTS v1 (`silma-ai/silma-tts`, Arabic/English, 163M parameters, F5-TTS architecture, Apache-2.0) and the Vocos vocoder.
 - `backend/neural_edit.py`: F5-TTS infilling. The old word's span is blanked and regenerated from the full edited sentence. Outputs `fake.wav` (only the new span pasted into the original) and `regen.wav` (whole clip through the vocoder).
 - `backend/swaplib.py`: shared helpers. `word_swap.py` now uses it; regression run 20261109-002018 matches run 20261108-232616 exactly.
-- `backend/app.py` + `run_app.sh`: local Gradio tool at http://127.0.0.1:7861. Upload or record ≤ 30 s, transcribe, click a word, type the new one, generate with neural edit or XTTS splice. About 11 s per neural edit, 40 s per splice (XTTS reloads in a helper process). Holds about 2.8 GB of GPU memory.
+- `backend/app.py` + `run_app.sh`: local Gradio tool (the sentence box keeps manual edits) at http://127.0.0.1:7861. Upload or record ≤ 30 s, transcribe, click a word, type the new one, generate with neural edit or XTTS splice. About 11 s per neural edit, 40 s per splice (XTTS reloads in a helper process). Holds about 2.8 GB of GPU memory.
 
 **Editing test (Whisper and spectrograms only; nobody has listened yet)**
-- NatGeo, الحلفاء → الألمان: works with 0 or 1 context words (runs 20261109-002717-f5, -003235-f5). Spectrogram of the edit is more continuous with its neighbours than the XTTS splice.
-- الدحيح, أمريكا → فرنسا: fails with 0 context words whatever the duration ("في أن", "أنسان", "فيه"). Works once the neighbouring word on each side is regenerated too (context 1 or 2, runs 20261109-003125-f5 to -003208-f5), and the clip needs words after the edit. Cost: neighbours can drift ("وهو النظام" → "والنظام", "يواجه" → "واجه").
+- NatGeo, الحلفاء → الألمان: works with 0 or 1 context words (runs 20261109-003801-f5, -003817-f5, at `00fb3b0`). Spectrogram of the edit is more continuous with its neighbours than the XTTS splice.
+- الدحيح, أمريكا → فرنسا (window 166.0–175.2 s): fails with 0 context words whatever the duration ("في أن", "أنسان", "فيه"; run 20261109-003847-f5). Works once the neighbouring word on each side is regenerated too (run 20261109-003832-f5, context 1, seed 1, at `00fb3b0`; earlier exploratory runs 003125–003208 agree). The clip also needed words after the edit. Cost: neighbours can drift ("وهو النظام" → "والنظام", "يواجه" → "واجه").
 - Numbers: Whisper sometimes writes digits; type them as words in the sentence box.
 
 **Not done**
