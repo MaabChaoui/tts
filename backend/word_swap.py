@@ -45,6 +45,7 @@ WHISPER_MODEL = "large-v3-turbo"  # ~1.6 GB; large-v3 (~3 GB) is slightly better
 WHISPER_DEVICE = "cuda"  # set by --whisper-device; "cpu" leaves the GPU to other jobs
 FADE_S = 0.015
 SNAP_S = 0.06
+NEIGHBOUR_TOL_S = 0.02  # whisper boundaries are approximate; allow cuts this far into a neighbour
 
 _DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۭـ]")
 _PUNCT = re.compile(r"[^\w]", re.UNICODE)
@@ -88,15 +89,26 @@ def transcribe(audio: np.ndarray) -> list[dict]:
     return words
 
 
-def snap(audio: np.ndarray, t: float) -> float:
-    """Move a boundary to the quietest 10 ms frame within ±SNAP_S, so cuts land in gaps."""
+def snap(audio: np.ndarray, t: float, lo_t: float, hi_t: float) -> float:
+    """Move a boundary to the quietest 10 ms frame within ±SNAP_S, so cuts land in gaps.
+    lo_t/hi_t keep it out of neighbouring words."""
     hop = int(0.01 * SR)
-    lo, hi = max(0, int((t - SNAP_S) * SR)), min(len(audio), int((t + SNAP_S) * SR))
+    lo = max(0, int(max(t - SNAP_S, lo_t) * SR))
+    hi = min(len(audio), int(min(t + SNAP_S, hi_t) * SR))
     if hi - lo < 2 * hop:
         return t
     frames = [(i, float(np.sqrt(np.mean(audio[i:i + hop] ** 2)))) for i in range(lo, hi - hop, hop // 2)]
     i, _ = min(frames, key=lambda f: f[1])
     return (i + hop / 2) / SR
+
+
+def word_bounds(audio: np.ndarray, words: list[dict], k: int) -> tuple[float, float]:
+    """Snapped start/end of words[k], never crossing into words[k-1] or words[k+1]."""
+    w = words[k]
+    mid = (w["start"] + w["end"]) / 2
+    prev_end = words[k - 1]["end"] - NEIGHBOUR_TOL_S if k > 0 else 0.0
+    next_start = words[k + 1]["start"] + NEIGHBOUR_TOL_S if k + 1 < len(words) else len(audio) / SR
+    return snap(audio, w["start"], prev_end, mid), snap(audio, w["end"], mid, next_start)
 
 
 def rms(x: np.ndarray) -> float:
@@ -174,8 +186,8 @@ def cmd_swap(args):
         sf.write(os.path.join(out, "synth_full.wav"), synth, SR)
         sys.exit(f"Could not find '{args.new_word}' in synthetic transcript: {[w['word'] for w in swords]}")
 
-    oa, ob = snap(orig, target["start"]), snap(orig, target["end"])
-    sa, sb = snap(synth, swords[j]["start"]), snap(synth, swords[j]["end"])
+    oa, ob = word_bounds(orig, words, args.word_index)
+    sa, sb = word_bounds(synth, swords, j)
     piece = synth[int(sa * SR):int(sb * SR)]
     gain = rms(orig[int(oa * SR):int(ob * SR)]) / rms(piece)
     piece = piece * gain
@@ -203,6 +215,8 @@ def cmd_swap(args):
         "synth_transcript": " ".join(w["word"] for w in swords),
         "gain": round(gain, 3),
         "crossfade_s": FADE_S,
+        "snap_s": SNAP_S,
+        "neighbour_tol_s": NEIGHBOUR_TOL_S,
         "seed": args.seed,
         "xtts": XTTS_MODEL,
         "whisper": WHISPER_MODEL,
@@ -220,24 +234,42 @@ def cmd_swap(args):
     print(f"\nWrote {out}")
 
 
-def plot(orig, fake, a, b_orig, b_fake, path):
+def plot(orig, fake, a, b_orig, b_fake, path, pad=1.2):
+    """Spectrograms of original and fake around the replaced word, on one colour scale."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib import mlab
 
-    fig, axes = plt.subplots(2, 1, figsize=(11, 5), sharey=True)
-    for ax, x, b, title in [(axes[0], orig, b_orig, "original"), (axes[1], fake, b_fake, "fake (one word replaced)")]:
-        ax.specgram(x, NFFT=512, Fs=SR, noverlap=384, cmap="magma")
-        ax.axvspan(a, b, color="white", alpha=0.18, lw=0)
-        ax.axvline(a, color="white", lw=0.8)
-        ax.axvline(b, color="white", lw=0.8)
+    lo = max(0.0, a - pad)
+    spec = dict(NFFT=1024, Fs=SR, noverlap=896)
+    p_db = 10 * np.log10(mlab.specgram(orig, **spec)[0] + 1e-12)
+    vmin, vmax = np.percentile(p_db, [5, 99.5])
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 4.6), sharex=True, sharey=True)
+    for ax, x, b, title in [(axes[0], orig, b_orig, "original"), (axes[1], fake, b_fake, "fake: one word replaced")]:
+        hi = min(len(x) / SR, b + pad)
+        seg = x[int(lo * SR):int(hi * SR)]
+        ax.specgram(seg, xextent=(lo, hi), cmap="magma", vmin=vmin, vmax=vmax, **spec)
+        for t in (a, b):
+            ax.axvline(t, color="white", lw=0.9, ls=(0, (3, 2)))
         ax.set_title(title, loc="left", fontsize=10)
         ax.set_ylabel("Hz")
         ax.set_ylim(0, 8000)
-    axes[1].set_xlabel("seconds")
+    axes[1].set_xlabel("seconds into the sentence")
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=160)
     plt.close(fig)
+
+
+def cmd_replot(args):
+    with open(os.path.join(args.run, "record.json")) as f:
+        r = json.load(f)
+    orig, _ = sf.read(os.path.join(args.run, "original.wav"), dtype="float32")
+    fake, _ = sf.read(os.path.join(args.run, "fake.wav"), dtype="float32")
+    a, b = r["original_word_s_snapped"]
+    sa, sb = r["synth_word_s_snapped"]
+    plot(orig, fake, a, b, a + (sb - sa), os.path.join(args.run, "splice.png"))
 
 
 def main():
@@ -245,6 +277,8 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("words", help="list words with timings in a window")
     s = sub.add_parser("swap", help="replace one word in a sentence")
+    r = sub.add_parser("replot", help="redraw splice.png for an existing run")
+    r.add_argument("--run", required=True)
     for q in (w, s):
         q.add_argument("--wav", required=True)
         q.add_argument("--start", type=float, required=True)
@@ -258,8 +292,8 @@ def main():
         q.add_argument("--whisper-device", choices=["cuda", "cpu"], default="cuda")
     args = p.parse_args()
     global WHISPER_DEVICE
-    WHISPER_DEVICE = args.whisper_device
-    {"words": cmd_words, "swap": cmd_swap}[args.cmd](args)
+    WHISPER_DEVICE = getattr(args, "whisper_device", WHISPER_DEVICE)
+    {"words": cmd_words, "swap": cmd_swap, "replot": cmd_replot}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,25 @@
 # /resHANDOFF.md — TTS Project Session Transfer
 
+## Latest: 2026-11-08 (new machine, RTX 3060 Laptop 6 GB)
+
+**Done**
+- Rebuilt `backend/.venv` (Python 3.11). Exact versions in `backend/requirements.lock`. Fixes: transformers `<5` (5.x breaks coqui-tts), `six` added, torchcodec cu128 build installed only to pass coqui-tts's import check; it cannot load here (system FFmpeg 9), so `utils/audio_compat.py` still does audio IO. faster-whisper also fails on file paths for the same reason, so pass numpy arrays.
+- Re-downloaded one video per speaker (audio only; provenance in `backend/sources.txt`) and ran `pipeline.extract`. Now 1.22 h, not the old 15.8 h.
+- Models cached: XTTS v2 (`~/.local/share/tts`), faster-whisper large-v3-turbo (`~/.cache/huggingface`).
+- `backend/word_swap.py`: replaces one word in a real sentence with the zero-shot cloned voice (partial spoof). Two working examples: NatGeo الحلفاء→الألمان (run 20261108-232616) and dahih أمريكا→فرنسا (run 20261108-232639). Whisper reads both fakes as the edited sentence. Listening page: `backend/outputs/word_swap/index.html`.
+
+**Not done**
+- No pipeline stage after extraction has run (transcribe, diarize, segment, clip, dataset, train). Fine-tuning not started.
+- pyannote not installed in the new venv (HF token is in `.env`).
+- Nobody has listened to the fakes yet; quality judged only by Whisper and spectrograms.
+
+**Caution**
+- The GitHub remote is public. Commits from this session are local only until it is made private.
+
+---
+
+## Earlier sessions
+
 ## Project Overview
 
 **Goal:** Multi-style Arabic documentary narration engine — fine-tune XTTS v2 on NatGeo/dahih narration audio to clone voices and styles.
