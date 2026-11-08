@@ -13,8 +13,8 @@
 - pyannote not installed in the new venv (HF token is in `.env`).
 - Nobody has listened to the fakes yet; quality judged only by Whisper and spectrograms.
 
-**Caution**
-- The GitHub remote is public. Commits from this session are local only until it is made private.
+**Note**
+- The GitHub remote is public by design (Maab, 2026-11-08). Audio, transcripts and generated clips stay in gitignored `data/` and `outputs/`.
 
 ---
 
